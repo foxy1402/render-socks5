@@ -1,35 +1,45 @@
-# -------------------------------------------------
-# 1️⃣ Base image – already contains OpenVPN & Easy‑RSA
-FROM kylemanna/openvpn
+# ---------- 1️⃣ Base image ----------
+FROM alpine:latest
 
-# -------------------------------------------------
-# 2️⃣ Run Easy‑RSA in batch mode – disables all prompts
-ENV EASYRSA_BATCH=1
+# ---------- 2️⃣ Install Dante ----------
+#   -dante-server provides the `sockd` daemon
+#   -openssl is needed for the optional TLS variant (not used here)
+RUN apk add --no-cache dante-server
 
-# -------------------------------------------------
-# 3️⃣ Build‑time steps (run only while the image is being built)
+# ---------- 3️⃣ Set default credentials ----------
+# These environment variables can be overridden in Render’s “Environment” UI.
+ENV SOCKS_USER   user
+ENV SOCKS_PASS   password
 
-# 3a️⃣ Generate a minimal TCP server config (port 1194)
-RUN ovpn_genconfig -u tcp://$(hostname)
+# ---------- 4️⃣ Create a small Dante config file ----------
+# The config uses the $PORT variable that Render injects at runtime.
+# It also reads the username/password from the env vars above.
+RUN mkdir -p /etc/dante && \
+cat > /etc/dante/sockd.conf <><>'EOF'
+logoutput: stderr
+internal: 0.0.0.0 port = ${PORT:-1080}
+external: eth0
 
-# 3b️⃣ Initialise the PKI (CA, server cert, DH params) – non‑interactive
-RUN ovpn_initpki nopass
+# Only allow connections from anywhere (you can lock this down later)
+method: username
+user.privileged: root
+client pass {
+    from: 0.0.0.0/0 to: 0.0.0.0/0
+    log: connect disconnect error
+}
+# Authentication rule – check username/password against the ones below
+pass {
+    from: 0.0.0.0/0 to: 0.0.0.0/0
+    protocol: tcp udp
+    method: username
+    username: "${SOCKS_USER}"
+    password: "${SOCKS_PASS}"
+}
+EOF
 
-# 3c️⃣ Create ONE client certificate (change the name if you want more)
-ARG CLIENT_NAME=myclient
-RUN easyrsa build-client-full "$CLIENT_NAME" nopass
+# ---------- 5️⃣ Expose the (default) port ----------
+EXPOSE 1080
 
-# 3d️⃣ Make a folder to store the client file and write it there
-RUN mkdir -p /client && \
-    ovpn_getclient "$CLIENT_NAME" > "/client/$CLIENT_NAME.ovpn"
-
-# -------------------------------------------------
-# 4️⃣ When the container starts we do two things:
-#    • Print the client config to stdout (so you can copy it from Render logs)
-#    • Launch OpenVPN in the foreground (Render watches this process)
-ENTRYPOINT ["/bin/sh","-c", "\
-  echo '--- BEGIN CLIENT CONFIG ------------------------------------------------'; \
-  cat /client/myclient.ovpn; \
-  echo '--- END CLIENT CONFIG --------------------------------------------------'; \
-  exec openvpn --config /etc/openvpn/openvpn.conf \
-"]
+# ---------- 6️⃣ Start the daemon ----------
+# `sockd -D` runs it in the foreground (required on Render)
+CMD ["sockd", "-D"]
