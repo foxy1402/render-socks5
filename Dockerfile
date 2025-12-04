@@ -1,4 +1,6 @@
-FROM tinyproxy/tinyproxy:latest
+FROM alpine:latest
+
+RUN apk add --no-cache tinyproxy
 
 RUN mkdir -p /etc/tinyproxy
 
