@@ -1,7 +1,7 @@
 FROM schors/tgdante2:latest
 
-# Copy the startup script
-COPY start-with-health.sh /start-with-health.sh
-RUN chmod +x /start-with-health.sh
-
-CMD ["/start-with-health.sh"]
+# Your SOCKS5 server is already configured by the base image
+# It will automatically use these environment variables:
+# - USER (for SOCKS5 username)
+# - PASS (for SOCKS5 password)
+# - PORT (for SOCKS5 port, defaults to 1080)
