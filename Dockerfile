@@ -1,32 +1,32 @@
 # -------------------------------------------------
-# 1️⃣ Base image that already contains OpenVPN + Easy‑RSA
+# 1️⃣ Base image – already contains OpenVPN & Easy‑RSA
 FROM kylemanna/openvpn
 
 # -------------------------------------------------
-# 2️⃣ Make Easy‑RSA run without interactive prompts
+# 2️⃣ Run Easy‑RSA in batch mode – disables all prompts
 ENV EASYRSA_BATCH=1
 
 # -------------------------------------------------
 # 3️⃣ Build‑time steps (run only while the image is being built)
 
-# 3a️⃣ Create a minimal server config that will listen on TCP 1194.
-#      $(hostname) will be replaced by the container’s host name at runtime.
+# 3a️⃣ Generate a minimal TCP server config (port 1194)
 RUN ovpn_genconfig -u tcp://$(hostname)
 
-# 3b️⃣ Initialise the PKI (CA, server cert, DH params) – non‑interactive.
+# 3b️⃣ Initialise the PKI (CA, server cert, DH params) – non‑interactive
 RUN ovpn_initpki nopass
 
-# 3c️⃣ Create ONE client certificate (you can change the name if you like)
+# 3c️⃣ Create ONE client certificate (change the name if you want more)
 ARG CLIENT_NAME=myclient
 RUN easyrsa build-client-full "$CLIENT_NAME" nopass
 
-# 3d️⃣ Export the ready‑to‑import .ovpn file into the image.
-RUN ovpn_getclient "$CLIENT_NAME" > "/client/$CLIENT_NAME.ovpn"
+# 3d️⃣ Make a folder to store the client file and write it there
+RUN mkdir -p /client && \
+    ovpn_getclient "$CLIENT_NAME" > "/client/$CLIENT_NAME.ovpn"
 
 # -------------------------------------------------
-# 4️⃣ When the container runs we do two things:
-#    • Print the client file to stdout (so you can copy it from Render logs)
-#    • Start the OpenVPN daemon (foreground) – this is what Render watches.
+# 4️⃣ When the container starts we do two things:
+#    • Print the client config to stdout (so you can copy it from Render logs)
+#    • Launch OpenVPN in the foreground (Render watches this process)
 ENTRYPOINT ["/bin/sh","-c", "\
   echo '--- BEGIN CLIENT CONFIG ------------------------------------------------'; \
   cat /client/myclient.ovpn; \
