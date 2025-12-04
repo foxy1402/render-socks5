@@ -9,4 +9,4 @@ COPY index.html /app/index.html
 
 EXPOSE 8080
 
-CMD sh -c "tinyproxy -d -c /etc/tinyproxy/tinyproxy.conf & python3 -m http.server 8080 --directory /app"
+CMD sh -c "tinyproxy -d -c /etc/tinyproxy/tinyproxy.conf & python3 -m http.server 9000 --directory /app"
